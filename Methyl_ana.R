@@ -1,35 +1,3 @@
-library(org.Hs.eg.db)
-library(stringr)
-library(missMethyl)
-library(limma)
-library(minfi)
-library(minfiData)
-
-baseDir <- system.file("extdata", package = "minfiData")
-targets <- read.metharray.sheet(baseDir)
-
-targets = read.metharray.sheet( file.path("/home/ottoraik/Koop_Klinghammer/Misc/"), pattern = "PDXsamplesheet130516.csv")
-targets[,1:9]
-raw_files = list.files("~/Koop_Klinghammer/Data/",pattern =".idat",recursive = T,full.names = T)
-raw_file_names = list.files("~/Koop_Klinghammer/Data/",pattern =".idat",recursive = T,full.names = F)
-raw_file_names = str_extract_all(raw_file_names, regex("/.*_.*_"))
-raw_file_names = str_replace_all(raw_file_names,regex("(_$)|(^/)"), "")
-
-raw_match = match(
-    paste( targets$Slide,targets$Array, sep ="_" ),
-    raw_file_names,
-    nomatch = 0
-)
-targets$Basename = raw_files[raw_match]
-
-cohort_info = read.table("~/Koop_Klinghammer/Misc/samples_methylierung.tsv",sep ="\t", header = T, stringsAsFactors = F)
-cohort_info$Group[ is.na(cohort_info$Group) ] = "Unclassified"
-meta_match= match( targets$Sample_Name, cohort_info$Sample_ID , nomatch = 0)
-subtype = cohort_info$Group[meta_match  ]
-
-targets_all = targets
-targets = targets[meta_match != 0,]
-
 rgSet <- read.metharray.exp(targets = targets)
 mSet <- preprocessRaw(rgSet)
 mSetSw <- SWAN(mSet,verbose=TRUE)
@@ -54,16 +22,18 @@ dim(Mval)
 
 #
 
+s_names = targets$Sample_Name[ match( colnames(Mval), paste(targets$Slide, targets$Array, sep ="_") , nomatch = 0) ]
+subtype_match = match(s_names, cohort_info$ID, nomatch = 0)
+subtype = cohort_info$Group[subtype_match]
 par(mfrow=c(1,1))
 pdf("~/Koop_Klinghammer/Results/Methyl/Unsupervised_similarity.pdf",onefile = F, paper="a4r",width = 28, height = 18)
     plotMDS(Mval, labels=targets$Sample_Name, col = as.integer(factor(subtype)))
-    legend("bottomleft",legend=c("MS","BA","CL"),pch=16,cex=1.2,col=1:3)
+    legend("topleft",legend=c("BA","CL","MS","Not_classified"),pch=16,cex=1.2,col=1:4)
 dev.off()
-
 
 #
 
-group  = factor( subtype,levels=c("MS","BA","CL"))
+group  = factor( subtype,levels=c("BA","CL","MS","Not_classified"))
 id     = factor(targets$Sample_Name)
 design = model.matrix(~ group)
 design
@@ -83,7 +53,7 @@ for(i in 1:3){
     stripchart(
         beta[ rownames(beta) == cpgs[i], ] ~ design[,1],
         method = "jitter",
-        group.names=c("MS","BA","CL"),pch=16,cex=1.5,col=c(4,2),ylab="Beta values",
+        group.names=c("BA","CL","MS","Not_classified"),pch=16,cex=1.5,col=c(4,2),ylab="Beta values",
         vertical=TRUE,cex.axis=1.5,cex.lab=1.5
     )
     title(cpgs[i],cex.main=1.5)
