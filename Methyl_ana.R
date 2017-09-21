@@ -17,17 +17,20 @@ mSetSw <- mSetSw[keep,]
 meth <- getMeth(mSetSw)
 unmeth <- getUnmeth(mSetSw)
 Mval <- log2((meth + 100)/(unmeth + 100))
-beta <- getBeta(mset_reduced)
+
+beta <- getBeta(mSetSw)
 dim(Mval)
 
 #
 
-s_names = targets$Sample_Name[ match( colnames(Mval), paste(targets$Slide, targets$Array, sep ="_") , nomatch = 0) ]
-subtype_match = match(s_names, cohort_info$ID, nomatch = 0)
-subtype = cohort_info$Group[subtype_match]
 par(mfrow=c(1,1))
+
+vis_match = match(colnames(Mval), paste(targets$Slide, targets$Array, sep = "_"), nomatch = 0)
+vis_names = targets$Sample_Name[vis_match]
+cohort_info
+
 pdf("~/Koop_Klinghammer/Results/Methyl/Unsupervised_similarity.pdf",onefile = F, paper="a4r",width = 28, height = 18)
-    plotMDS(Mval, labels=targets$Sample_Name, col = as.integer(factor(subtype)))
+    plotMDS(Mval, labels = vis_names, col = as.integer(factor(subtype)))
     legend("topleft",legend=c("BA","CL","MS","Not_classified"),pch=16,cex=1.2,col=1:4)
 dev.off()
 
@@ -48,13 +51,22 @@ top = topTable(fit,coef = 3)
 top
 
 cpgs <- rownames(top)
+beta <- getBeta(mSetSw)
+
 par(mfrow=c(2,2))
+
 for(i in 1:3){
     stripchart(
         beta[ rownames(beta) == cpgs[i], ] ~ design[,1],
         method = "jitter",
-        group.names=c("BA","CL","MS","Not_classified"),pch=16,cex=1.5,col=c(4,2),ylab="Beta values",
-        vertical=TRUE,cex.axis=1.5,cex.lab=1.5
+        group.names = c("BA","CL","MS","Not_classified")[i],
+        pch = 16,
+        cex = 1.5,
+        col = c(4,2),
+        ylab = "Beta values",
+        vertical = TRUE,
+        cex.axis = 1.5,
+        cex.lab = 1.5
     )
     title(cpgs[i],cex.main=1.5)
 }
@@ -65,7 +77,7 @@ meth <- getMeth(mSet)
 unmeth <- getUnmeth(mSet)
 M <- log2((meth + 100)/(unmeth + 100))
 
-grp <- factor( subtypes,levels=c("MS","BA","CL"))
+grp <- factor( subtype,levels=c("BA","CL","MS","Not_clasified"))
 des <- model.matrix(~grp)
 des
 
@@ -76,7 +88,12 @@ Mc <- rbind(M,INCs)
 ctl <- rownames(Mc) %in% rownames(INCs)
 table(ctl)
 
-rfit1 <- RUVfit(data=Mc, design=des, coef=2, ctl=ctl) # Stage 1 analysis
+rfit1 <- RUVfit(
+    data = Mc,
+    design = des,
+    coef = 2,
+    ctl = ctl
+) # Stage 1 analysis
 rfit2 <- RUVadj(rfit1)
 
 top1 <- topRUV(rfit2, num=Inf)

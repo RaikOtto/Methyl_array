@@ -30,7 +30,7 @@ targets$Basename = raw_files[raw_match]
 cohort_info = read.table("~/Koop_Klinghammer/Misc/samples_methylierung.tsv",sep ="\t", header = T, stringsAsFactors = F)
 meta_match= match( targets$Sample_Name, cohort_info$ID , nomatch = 0)
 subtype = cohort_info$Group[meta_match  ]
-real_name = meta_match
+subtype[is.na(subtype) ] = "Not_classified"
 
 targets_all = targets
 targets = targets[meta_match != 0,]
