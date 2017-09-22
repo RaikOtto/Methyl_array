@@ -1,7 +1,40 @@
-rgSet <- read.metharray.exp(targets = targets)
-mSet <- preprocessRaw(rgSet)
-mSetSw <- SWAN(mSet,verbose=TRUE)
+MSet <- preprocessRaw(rgSet) 
+RSet <- ratioConvert(MSet, what = "both", keepCN = TRUE)
+beta <- getBeta(RSet)
 
+GRset <- mapToGenome(RSet)
+beta <- getBeta(GRset)
+M <- getM(GRset)
+CN <- getCN(GRset)
+
+plotQC(getQC(MSet))
+
+GRset.funnorm <- preprocessFunnorm(rgSet)
+
+# QC
+
+qc <- getQC(mSetSw)
+plotQC(qc, id=colnames(mSetSw))
+densityPlot(mSetSw, sampGroups = subtype)
+densityBeanPlot(mSet, sampGroups = subtype)
+controlStripPlot(rgSet, controls="BISULFITE CONVERSION II")
+qcReport(rgSet, pdf= "~/Koop_Klinghammer/Results/qcReport.pdf")
+
+GRset <- mapToGenome(mSetSw)
+predictedSex <- getSex(GRset, cutoff = -2)$predictedSex
+head(predictedSex)
+plotSex(getSex(GRset, cutoff = -2), id = s_names)
+
+# Dif exp
+
+pheno = subtype
+designMatrix <- model.matrix(~ pheno)
+dmrs <- bumphunter(GRset.funnorm, design = designMatrix,cutoff = 0.2, B=0, type="Beta")
+dmrs$coef
+
+ab <- compartments(grset.quantile, chr="chr14", resolution=100-1000)
+
+#
 par(mfrow=c(1,2), cex=1.25)
 densityByProbeType(mSet[,1], main = "Raw")
 densityByProbeType(mSetSw[,1], main = "SWAN")
@@ -73,15 +106,22 @@ for(i in 1:3){
 
 # get M-values for ALL probes
 
-meth <- getMeth(mSet)
-unmeth <- getUnmeth(mSet)
-M <- log2((meth + 100)/(unmeth + 100))
+CASE = "MS"
+CTRL = "BA"
 
-grp <- factor( subtype,levels=c("BA","CL","MS","Not_clasified"))
-des <- model.matrix(~grp)
+cohort_match = match(colnames(GRset.funnorm), names(subtype[subtype %in% c(CASE,CTRL)]), nomatch = 0)
+subset_data = mSetSw[,cohort_match != 0]
+subset_data_rg = rgSet[,cohort_match != 0]
+
+grp = subtype[ cohort_match != 0]
+
+des <- model.matrix(~ grp)
 des
 
-INCs <- getINCs(rgSet)
+meth <- getMeth(subset_data)
+unmeth <- getUnmeth(subset_data)
+M <- log2((meth + 100)/(unmeth + 100))
+INCs <- getINCs(subset_data_rg)
 head(INCs)
 
 Mc <- rbind(M,INCs)
@@ -100,62 +140,66 @@ top1 <- topRUV(rfit2, num=Inf)
 head(top1)
 
 ctl <- rownames(M) %in% rownames(top1[top1$p.ebayes.BH > 0.5,])
-table(ctl)
 
 rfit1 <- RUVfit(data=M, design=des, coef=2, ctl=ctl) # Stage 2 analysis
 rfit2 <- RUVadj(rfit1)
 
 # Look at table of top results
 topRUV(rfit2)
-table(rfit2$p.ebayes.BH < 0.01)
+table(rfit2$p.ebayes.BH < 0.05)
 
-beta <- getBeta(mSet)
+beta <- getBeta(subset_data)
 beta_norm <- rowMeans(beta[,des[,2]==0])
 beta_can <- rowMeans(beta[,des[,2]==1])
 Delta_beta <- beta_can - beta_norm
-sigDM <- rfit2$p.ebayes.BH < 0.01 & abs(Delta_beta) > 0.25
+
+table(( rfit2$p.ebayes.BH < 0.05 ))
+table(abs(Delta_beta) > 0.25)
+
+sigDM <- ( rfit2$p.ebayes.BH < 0.05 ) & ( abs(Delta_beta) > 0.25 )
 table(sigDM)
 
-topCpGs<-topRUV(rfit2,number=10000)
+topCpGs<-topRUV(rfit2 )
 sigCpGs <- rownames(topCpGs)
 sigCpGs[1:10]
 
-library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
-gst <- gometh(sig.cpg=sigCpGs, all.cpg=rownames(rfit2), collection="GO")
-
-topCpGs<-topRUV(rfit2,number=10000)
-sigCpGs <- rownames(topCpGs)
-
 ## annotation
 
-genes <- toTable(org.Hs.egSYMBOL2EG)
-set1 <- sample(genes$gene_id,size=80)
-set2 <- sample(genes$gene_id,size=100)
-set3 <- sample(genes$gene_id,size=30)
-genesets <- list(set1,set2,set3)
-gsa <- gsameth(sig.cpg=sigCpGs, all.cpg=rownames(rfit2), collection=genesets)
+sig_ruv = topRUV(rfit2, p.value.cut = .05)
+dim(sig_ruv)
+sigCpGs = rownames(sig_ruv)
 
-topGSA(gsa)
+library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19 )
+annot_match = match( sigCpGs,  rownames(IlluminaHumanMethylationEPICanno.ilm10b2.hg19::Other ) , nomatch = 0)
+hgnc_names = IlluminaHumanMethylationEPICanno.ilm10b2.hg19::Other$UCSC_RefGene_Name[annot_match]
+hgnc_names = sapply( hgnc_names, FUN = function(vec){return(
+    paste( as.character( unique(as.character(unlist(str_split(vec,pattern = ";"))))), collapse = ";", sep ="" )
+)} )
 
-#
+res_tab = as.data.frame(cbind(hgnc_names,sigCpGs,sig_ruv[c("coefficients","p.ebayes.BH")]))
+res_tab = res_tab[order(res_tab$coefficients, decreasing = T),]
 
-source("https://bioconductor.org/biocLite.R")
-biocLite("IlluminaHumanMethylation450k.db")
+m_data = getM(GRset.funnorm )
 
-library(IlluminaHumanMethylation450k.db)
-CpG_annotation <- as.list(IlluminaHumanMethylation450kSYMBOL[mappedkeys(IlluminaHumanMethylation450kSYMBOL)])
 
-mapToGenome("cg07155336")
-require(minfiData)
-GMsetEx.sub <- mapToGenome(MsetEx.sub)
+boxplot(
+    m_data[ 
+        rownames(m_data) == res_tab$sigCpGs[1],
+        colnames(m_data) %in% names(subtype)[subtype %in% CASE]
+    ],
+    m_data[ 
+      rownames(m_data) == res_tab$sigCpGs[1],
+      colnames(m_data) %in% names(subtype)[subtype %in% CTRL]
+    ],
+    main = res_tab$sigCpGs[1],
+    names= c(CTRL,CASE)   
+)
+res_tab$coefficients = round(res_tab$coefficients,1)
 
-GRanges(GMsetEx.sub@assays)
-
-biocLite('FDb.InfiniumMethylation.hg19')
-library('FDb.InfiniumMethylation.hg19')
-
-hm450 <- get450k()
-probenames <- c("cg16392865", "cg00395291", "cg09310185", "cg21749424")
-probes <- hm450[sigCpGs]
-getNearestTSS(probes)
-
+write.table(
+    res_tab,
+    paste( c( "~/Koop_Klinghammer/Results/Dif_Meth/Dif_methy_CASE_",CASE,"_CTRL_",CTRL,".tsv"), collapse = "", sep=""),
+    quote = F,
+    sep = "\t",
+    row.names = F
+)
