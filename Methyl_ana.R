@@ -108,7 +108,7 @@ for(i in 1:3){
 
 # get M-values for ALL probes
 
-CASE = "MS"
+CASE = "CL"
 CTRL = "BA"
 
 cohort_match = match(colnames(GRset.funnorm), names(subtype[subtype %in% c(CASE,CTRL)]), nomatch = 0)
@@ -116,73 +116,33 @@ subset_data = mSetSw[,cohort_match != 0]
 subset_data_rg = rgSet[,cohort_match != 0]
 
 grp = subtype[ cohort_match != 0]
-
 des <- model.matrix(~ grp)
-des
 
 meth <- getMeth(subset_data)
 unmeth <- getUnmeth(subset_data)
-M <- log2((meth + 100)/(unmeth + 100))
-INCs <- getINCs(subset_data_rg)
-head(INCs)
-
-Mc <- rbind(M,INCs)
-ctl <- rownames(Mc) %in% rownames(INCs)
-table(ctl)
-
-rfit1 <- RUVfit(
-    data = Mc,
-    design = des,
-    coef = 2,
-    ctl = ctl
-) # Stage 1 analysis
-rfit2 <- RUVadj(rfit1)
-
-top1 <- topRUV(rfit2, num=Inf)
-head(top1)
-
-ctl <- rownames(M) %in% rownames(top1[top1$p.ebayes.BH > 0.5,])
-
-rfit1 <- RUVfit(data=M, design=des, coef=2, ctl=ctl) # Stage 2 analysis
-rfit2 <- RUVadj(rfit1)
-
-# Look at table of top results
-topRUV(rfit2)
-table(rfit2$p.ebayes.BH < 0.05)
-
+Mval <- log2((meth + 100)/(unmeth + 100))
 beta <- getBeta(subset_data)
-beta_norm <- rowMeans(beta[,des[,2]==0])
-beta_can <- rowMeans(beta[,des[,2]==1])
-Delta_beta <- beta_can - beta_norm
+dim(Mval)
 
-table(( rfit2$p.ebayes.BH < 0.05 ))
-table(abs(Delta_beta) > 0.25)
+fit <- lmFit(Mval,des)
+fit <- eBayes(fit)
+summary(decideTests(fit))
 
-sigDM <- ( rfit2$p.ebayes.BH < 0.05 ) & ( abs(Delta_beta) > 0.25 )
-table(sigDM)
-
-topCpGs<-topRUV(rfit2 )
-sigCpGs <- rownames(topCpGs)
-sigCpGs[1:10]
-
-## annotation
-
-sig_ruv = topRUV(rfit2, p.value.cut = .05)
-dim(sig_ruv)
-sigCpGs = rownames(sig_ruv)
+top = topTable(fit,coef=2, sort.by = "logFC", p.value = .05, number = 300)
+sigCpGs = rownames(top)
 
 library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19 )
+
 annot_match = match( sigCpGs,  rownames(IlluminaHumanMethylationEPICanno.ilm10b2.hg19::Other ) , nomatch = 0)
 hgnc_names = IlluminaHumanMethylationEPICanno.ilm10b2.hg19::Other$UCSC_RefGene_Name[annot_match]
 hgnc_names = sapply( hgnc_names, FUN = function(vec){return(
     paste( as.character( unique(as.character(unlist(str_split(vec,pattern = ";"))))), collapse = ";", sep ="" )
 )} )
 
-res_tab = as.data.frame(cbind(hgnc_names,sigCpGs,sig_ruv[c("coefficients","p.ebayes.BH")]))
-res_tab = res_tab[order(res_tab$coefficients, decreasing = T),]
+res_tab = as.data.frame(cbind(hgnc_names,sigCpGs,top[c("logFC","adj.P.Val")]))
+res_tab = res_tab[order(res_tab$logFC, decreasing = T),]
 
-m_data = getM(GRset.funnorm )
-
+m_data = getM( mSetSw )
 
 boxplot(
     m_data[ 
@@ -196,7 +156,7 @@ boxplot(
     main = res_tab$sigCpGs[1],
     names= c(CTRL,CASE)   
 )
-res_tab$coefficients = round(res_tab$coefficients,1)
+res_tab$logFC = round(res_tab$logFC,1)
 
 write.table(
     res_tab,
