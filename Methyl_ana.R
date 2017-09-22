@@ -9,7 +9,9 @@ CN <- getCN(GRset)
 
 plotQC(getQC(MSet))
 
-GRset.funnorm <- preprocessFunnorm(rgSet)
+GRset.funnorm = readRDS("~/Koop_Klinghammer/Data/GRset.funnorm.RData")
+#GRset.funnorm <- preprocessFunnorm(rgSet)
+#saveRDS(GRset.funnorm, "~/Koop_Klinghammer/Data/GRset.funnorm.RData")
 
 # QC
 

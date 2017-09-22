@@ -46,16 +46,5 @@ colnames(mSetSw) = s_names
 colnames(mSet) = s_names
 mSetSw
 
-saveRDS(mSetSw, "~/Koop_Klinghammer/Data/rgSet.RData")
-
-#
-
-myShinyMethylSet <- shinySummarize(rgSet)
-
-summary   <- shinySummarize(rgSet)
-
-GRSet.norm <- preprocessQuantile(rgSet)
-summary.norm <- shinySummarize(GRSet.norm)
-
-runShinyMethyl(summary,summary.norm )
-
+mSetSw = readRDS("~/Koop_Klinghammer/Data/rgSet.RData")
+#saveRDS(mSetSw, "~/Koop_Klinghammer/Data/rgSet.RData")
