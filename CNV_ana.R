@@ -1,37 +1,28 @@
-
-#PARSE
-
-rgSet <- read.metharray.exp(targets = targets)
-dim(rgSet)
-
 ## use z-transformation
 
-workflow <- "C" #B, A, C
+workflow <- "A" #B, A, C
 
 ## normalize samples and controls sdasd
 ## together
-dataset <- minfiData::RGsetEx
-dataset = rgSet
-normData <- minfi::getCN(minfi::preprocessIllumina(dataset))
-dim(normData)
-colnames(normData) = targets$Sample_Name
 
-switch(workflow,
-       A = {
-         ctrlAll <- normData[,]
-         ctrl <- apply(ctrlAll, 1, "median")
-       },
-       B = {
-         #with z-Transformation, illumina
-         ctrlAll <- normData[,]
-         ctrlAll[is.infinite(ctrlAll)] <- NA
-         ctrlAll <- scale(ctrlAll)
-         ctrl <- apply(ctrlAll, 1, "median")
-       },
-       C = {
-         #conumee-path, Illumina
-         ctrl <- normData[,]
-       })
+normData = minfi::getCN(minfi::preprocessIllumina(rgSet))
+colnames(normData)
+dim(normData)
+
+switch(
+    workflow,
+    A = {
+        ctrlAll <- normData[,]
+        ctrl <- apply(ctrlAll, MARGIN = 1, FUN= median)
+    },
+    B = {
+        ctrlAll <- normData[,]
+        ctrlAll[is.infinite(ctrlAll)] <- NA
+        ctrlAll <- scale(ctrlAll)
+        ctrl <- apply(ctrlAll, 1, "median")
+    },
+    C = {ctrl <- normData[,]}
+)
 
 ## samples
 switch(workflow,
@@ -50,10 +41,9 @@ switch(workflow,
          samples <- normData[,]
        },
        {
-         stop("Invalid Workflow! Please set workflow to either 'A', 'B' or 'C'.")
-       })
+         stop("Invalid Workflow! Please set workflow to either 'A', 'B' or 'C'.")}
+)
 
-#What information is of interest?
 candidates <- "genes" #segments, bins, transcripts, genes
 
 candidatesDATA <- NULL
@@ -93,18 +83,13 @@ if (candidates == "segments") {
                           genes,
                           c("ENTREZID"),
                           "SYMBOL")
-  tx <-
-    AnnotationDbi::select(
+  tx = AnnotationDbi::select(
       TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene,
       egid$ENTREZID,
       columns = "TXNAME",
       keytype = "GENEID"
     )$TXNAME
-  ## or alternatively, give a vector of transcript names
-  #tx <- c("uc003tqh.3", "uc022ado.1", "uc003qqo.3")
-  ## or test all transcripts (can take some time)
-  tx <-
-    GenomicFeatures::transcripts(
+  tx = GenomicFeatures::transcripts(
       TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene)$tx_name
   
   if (workflow == "C") {

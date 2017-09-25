@@ -1,14 +1,14 @@
 # get M-values for ALL probes
 
 CASE = "CL"
-CTRL = "BA"
+CTRL = "MS"
 
 cohort_match = match(colnames(GRset.funnorm), names(subtype[subtype %in% c(CASE,CTRL)]), nomatch = 0)
 subset_data = mSetSw[,cohort_match != 0]
-subset_data_rg = rgSet[,cohort_match != 0]
+#subset_data_rg = rgSet[,cohort_match != 0]
 
 grp = subtype[ cohort_match != 0]
-des <- model.matrix(~ grp)
+des <- model.matrix(~  0 +grp)
 
 meth <- getMeth(subset_data)
 unmeth <- getUnmeth(subset_data)
@@ -23,8 +23,6 @@ summary(decideTests(fit))
 top = topTable(fit,coef=2, sort.by = "logFC", p.value = .05, number = 300)
 sigCpGs = rownames(top)
 
-library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19 )
-
 annot_match = match( sigCpGs,  rownames(IlluminaHumanMethylationEPICanno.ilm10b2.hg19::Other ) , nomatch = 0)
 hgnc_names = IlluminaHumanMethylationEPICanno.ilm10b2.hg19::Other$UCSC_RefGene_Name[annot_match]
 hgnc_names = sapply( hgnc_names, FUN = function(vec){return(
@@ -34,16 +32,14 @@ hgnc_names = sapply( hgnc_names, FUN = function(vec){return(
 res_tab = as.data.frame(cbind(hgnc_names,sigCpGs,top[c("logFC","adj.P.Val")]))
 res_tab = res_tab[order(res_tab$logFC, decreasing = T),]
 
-m_data = getM( mSetSw )
-
 boxplot(
-    m_data[ 
-        rownames(m_data) == res_tab$sigCpGs[1],
-        colnames(m_data) %in% names(subtype)[subtype %in% CASE]
+    Mval[ 
+        rownames(Mval) == res_tab$sigCpGs[1],
+        colnames(Mval) %in% names(subtype)[subtype %in% CASE]
     ],
-    m_data[ 
-      rownames(m_data) == res_tab$sigCpGs[1],
-      colnames(m_data) %in% names(subtype)[subtype %in% CTRL]
+    Mval[ 
+      rownames(Mval) == res_tab$sigCpGs[1],
+      colnames(Mval) %in% names(subtype)[subtype %in% CTRL]
     ],
     main = res_tab$sigCpGs[1],
     names= c(CTRL,CASE)   
@@ -57,7 +53,6 @@ write.table(
     sep = "\t",
     row.names = F
 )
-
 
 # bumphunter
 
