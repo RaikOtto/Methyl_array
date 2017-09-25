@@ -1,11 +1,10 @@
 library("cnAnalysis450k")
-library(org.Hs.eg.db)
-library(stringr)
-library(missMethyl)
-library(limma)
-library(minfi)
-library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
-library(minfiData)
+library("org.Hs.eg.db")
+library("stringr")
+library("missMethyl")
+library("limma")
+library("minfi")
+library("IlluminaHumanMethylationEPICanno.ilm10b2.hg19")
 library("grid")     ## Need to attach (and not just load) grid package
 draw_colnames_45 <- function (coln, gaps, ...) {coord = pheatmap:::find_coordinates(length(coln), gaps);x = coord$coord - 0.5 * coord$size;  res = textGrob(coln, x = x, y = unit(1, "npc") - unit(3,"bigpts"), vjust = 0.5, hjust = 1, rot = 45, gp = gpar(...));  return(res)}
 assignInNamespace(x="draw_colnames", value="draw_colnames_45",ns=asNamespace("pheatmap"))
@@ -36,15 +35,48 @@ s_names =  cohort_info$ID[meta_match ]
 names(subtype) = s_names
 
 dim(targets)
-rgSet <- read.metharray.exp(targets = targets)
+#rgSet <- read.metharray.exp(targets = targets)
 pData(rgSet)$subtype = subtype
 
-mSet <- preprocessRaw(rgSet)
-mSetSw <- SWAN(mSet,verbose=TRUE)
+mSetSw = readRDS("~/Koop_Klinghammer/Data/rg_Swan_normalized.RData")
+mSet = readRDS("~/Koop_Klinghammer/Data/mSet.RData")
+#saveRDS(mSet, "~/Koop_Klinghammer/Data/mSet.RData")
+#saveRDS(mSetSw, "~/Koop_Klinghammer/Data/rg_Swan_normalized.RData")
+
+#mSet <- preprocessRaw(rgSet)
+#mSetSw <- SWAN(mSet,verbose=TRUE)
 colnames(rgSet) = s_names
 colnames(mSetSw) = s_names
 colnames(mSet) = s_names
-mSetSw
 
-mSetSw = readRDS("~/Koop_Klinghammer/Data/rgSet.RData")
-#saveRDS(mSetSw, "~/Koop_Klinghammer/Data/rgSet.RData")
+###
+
+RSet <- ratioConvert(mSet, what = "both", keepCN = TRUE)
+beta <- getBeta(RSet)
+
+GRset <- mapToGenome(RSet)
+beta <- getBeta(GRset)
+M <- getM(GRset)
+CN <- getCN(GRset)
+
+#plotQC(getQC(MSet))
+
+GRset.funnorm = readRDS("~/Koop_Klinghammer/Data/GRset.funnorm.RData")
+#GRset.funnorm <- preprocessFunnorm(rgSet)
+#saveRDS(GRset.funnorm, "~/Koop_Klinghammer/Data/GRset.funnorm.RData")
+
+# filtering outlier
+
+detP <- detectionP(rgSet)
+keep <- rowSums(detP < 0.01) == ncol(rgSet)
+mSetSw_raw = mSetSw
+mSetSw <- mSetSw_raw[keep,]
+
+# extract values
+
+meth <- getMeth(mSetSw)
+unmeth <- getUnmeth(mSetSw)
+Mval <- log2((meth + 100)/(unmeth + 100))
+
+beta <- getBeta(mSetSw)
+dim(Mval)
