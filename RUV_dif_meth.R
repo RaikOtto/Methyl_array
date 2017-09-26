@@ -51,7 +51,7 @@ dif_var_ana = function(CASE,CTRL){
     dif_var = var_ctrl - var_case
     
     res_tab = as.data.frame(cbind(hgnc_names,cpgsDV,dif_var,var_case,var_ctrl,topDV[c("SampleVar","LogVarRatio","DiffLevene","Adj.P.Value")]))
-    res_tab = res_tab[order(res_tab$LogVarRatio, decreasing = T),]
+    res_tab = res_tab[order(res_tab$dif_var, decreasing = T),]
     res_tab$SampleVar = round(res_tab$SampleVar,1);res_tab$LogVarRatio = round(res_tab$LogVarRatio,1);res_tab$DiffLevene = round(res_tab$DiffLevene,1)
     
     pdf(

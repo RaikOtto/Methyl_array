@@ -1,9 +1,40 @@
+# prep 
+
+#annot_match = match( rownames(samples),  rownames(IlluminaHumanMethylationEPICanno.ilm10b2.hg19::Other ) , nomatch = 0)
+#genes = IlluminaHumanMethylationEPICanno.ilm10b2.hg19::Other$UCSC_RefGene_Name[annot_match]
+#genes = sapply( genes, FUN = function(vec){return(
+#  paste( as.character( unique(as.character(unlist(str_split(vec,pattern = ";"))))), collapse = ";", sep ="" )
+#)} )
+#saveRDS(genes,"~/Koop_Klinghammer/Misc/HGNC_EPIC_name_mapping.RData")
+
+#entrez_gene_set = AnnotationDbi::select(
+#  org.Hs.eg.db::org.Hs.eg.db,
+#  hgnc_gene_set,
+#  c("ENTREZID"),
+#  "SYMBOL"
+#)
+#saveRDS(entrez_gene_set,"~/Koop_Klinghammer/Misc/ENTREZ_EPIC_name_mapping.RData")
+
+#tx = AnnotationDbi::select(
+#    TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene,
+#    entrez_gene_set$ENTREZID,
+#    columns = "TXNAME",
+#    keytype = "GENEID"
+#)$TXNAME
+
+#tx = GenomicFeatures::transcripts(
+#    TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene
+#)$tx_name
+#saveRDS(tx,"~/Koop_Klinghammer/Misc/Tx.RData")
+
 ## use z-transformation
 
-workflow <- "A" #B, A, C
+workflow <- "C" #B, A, C
 
 ## normalize samples and controls sdasd
 ## together
+
+rgSet = rgSet[,1:2]
 
 normData = minfi::getCN(minfi::preprocessIllumina(rgSet))
 colnames(normData)
@@ -21,7 +52,7 @@ switch(
         ctrlAll <- scale(ctrlAll)
         ctrl <- apply(ctrlAll, 1, "median")
     },
-    C = {ctrl <- normData[,]}
+    C = {ctrl = normData[,]}
 )
 
 ## samples
@@ -48,78 +79,62 @@ candidates <- "genes" #segments, bins, transcripts, genes
 
 candidatesDATA <- NULL
 if (candidates == "segments") {
-  if (workflow == "C") {
-    #calculate segments with conumee
-    candidatesDATA <- cnAnalysis450k::runConumee(samples, ctrl)
-  } else {
-    candidatesDATA <-
-      cnAnalysis450k::findSegments(samples[, , drop = FALSE], ctrl, ctrlAll)
-  }
-} else if (candidates == "bins") {
-  if (workflow == "C") {
-    #calculate bins with conumee
-    candidatesDATA <-
-      cnAnalysis450k::runConumee(samples, ctrl, what = "bins")
-  } else {
-    #calculate bins, binsize=50000
-    ### CHANGE BINSIZE HERE
-    candidatesDATA <-
-      cnAnalysis450k::createBinsFast(samples[, 1:3, drop = FALSE], ctrl,
-                                     ctrlAll, binsize = 500000)
-  }
-} else if (candidates == "transcripts" || candidates == "genes") {
-  ## genenames
-  genes <-
-    c(
-      "EGFR", "NF1", "PIK3CA", "PTEN", "ARID1B", "ATRX",
-      "CIC", "SETD2", "TSC2","KMT2D", "NOTCH1", "NOTCH2",
-      "VHL", "TP53", "BRCA1", "BRCA2","ATM", "APC", "TERT",
-      "PTCH1","SMO",  "ALK", "MPL", "MDM2", "MDM4", "MYC",
-      "MYCN", "ID2", "PDGFRA","MET", "CDK4", "CDK6","CCND2",                
-      "CDKN2A","PTEN","RB1", "SOX2"
-    )
-  egid <-
-    AnnotationDbi::select(org.Hs.eg.db::org.Hs.eg.db,
-                          genes,
-                          c("ENTREZID"),
-                          "SYMBOL")
-  tx = AnnotationDbi::select(
-      TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene,
-      egid$ENTREZID,
-      columns = "TXNAME",
-      keytype = "GENEID"
-    )$TXNAME
-  tx = GenomicFeatures::transcripts(
-      TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene)$tx_name
   
-  if (workflow == "C") {
-    candidatesDATA <-
-      cnAnalysis450k::runConumee(samples, ctrl, what = "transcripts", tx)
-  } else {
-    candidatesDATA <-
-      cnAnalysis450k::getTxValues(samples, ctrl, ctrlAll, tx, output = "diff")
-    ##alteratively
-    #candidatesDATA <- cnAnalysis450k::getTxValuesFast(samples, ctrl, ctrlAll, tx)
-  }
+    if (workflow == "C") {
+      #calculate segments with conumee
+      candidatesDATA <- cnAnalysis450k::runConumee(samples, ctrl)
+    } else {
+      candidatesDATA <-
+        cnAnalysis450k::findSegments(samples[, , drop = FALSE], ctrl, ctrlAll)
+    }
+} else if (candidates == "bins") {
+    if (workflow == "C") {
+      
+      candidatesDATA = cnAnalysis450k::runConumee(samples, ctrl, what = "bins")
+      
+    } else {
+      
+      candidatesDATA = cnAnalysis450k::createBinsFast(samples[, 1:3, drop = FALSE], ctrl, ctrlAll, binsize = 500000)
+    }
+} else if (candidates == "transcripts" || candidates == "genes") {
+  
+    hgnc_gene_set = readRDS("~/Koop_Klinghammer/Misc/HGNC_EPIC_name_mapping.RData")
+    entrez_gene_set = readRDS("~/Koop_Klinghammer/Misc/ENTREZ_EPIC_name_mapping.RData")
+    tx = readRDS( "~/Koop_Klinghammer/Misc/Tx.RData" )
+
+    if (workflow == "C") {
+      
+        candidatesDATA = cnAnalysis450k::runConumee(samples, ctrl, what = "transcripts", tx)
+        
+    } else {
+      
+        #candidatesDATA = cnAnalysis450k::getTxValues(samples, ctrl, ctrlAll, tx, output = "diff")
+        candidatesDATA <- cnAnalysis450k::getTxValuesFast(samples, ctrl, ctrlAll, tx)
+    }
 } else {
   stop("Invalid candidate selection! Set to 'segments', 'genes', 
                      'transcripts', 'bins'.")
 }
 
+candidatesDATA
+
 candidatesMATRIX <- NULL
 if (workflow == "C") {
-  candidatesMATRIX <-
-    cnAnalysis450k::createConumeeMatrix(candidatesDATA)
+    
+  candidatesMATRIX = cnAnalysis450k::createConumeeMatrix(candidatesDATA)
+  
 } else {
-  if (candidates == "segments") {
-    candidatesMATRIX <-
-      cnAnalysis450k::createSegmentMatrix(candidatesDATA, p.select = 0.05)
-  } else if (candidates == "bins") {
-    candidatesMATRIX <- 
-      cnAnalysis450k::createBinMatrix(candidatesDATA, pval=1)
-  } else  {
-    candidatesMATRIX <-
-      candidatesDATA$data[which(candidatesDATA$p.val <= 0.05), ]
+    if (candidates == "segments") {
+    
+        candidatesMATRIX = cnAnalysis450k::createSegmentMatrix(candidatesDATA, p.select = 0.05)
+    
+    } else if (candidates == "bins") {
+        
+        candidatesMATRIX = cnAnalysis450k::createBinMatrix(candidatesDATA, pval=1)
+    
+    } else  {
+    
+        candidatesMATRIX = candidatesDATA$data[which(candidatesDATA$p.val <= 0.05), ]
   }
 }
 
